@@ -1,0 +1,29 @@
+{
+  "version": 4,
+  "configurations": [
+    {
+      "name": "STM32F103-StdPeriph",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "${workspaceFolder}/Start",
+        "${workspaceFolder}/User",
+        "${workspaceFolder}/System",
+        "${workspaceFolder}/Hardware",
+        "${workspaceFolder}/Library/**"
+      ],
+      "defines": [
+        "USE_STDPERIPH_DRIVER",
+        "STM32F10X_MD"
+      ],
+      "cStandard": "c11",
+      "intelliSenseMode": "windows-gcc-arm",
+      "browse": {
+        "path": [
+          "${workspaceFolder}",
+          "${workspaceFolder}/Library"
+        ],
+        "limitSymbolsToIncludedHeaders": true
+      }
+    }
+  ]
+}

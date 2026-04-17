@@ -1,0 +1,54 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Keil Build",
+      "type": "shell",
+      "command": "G:\\Keil5\\UV4\\UV4.exe",
+      "args": [
+        "-j0",
+        "-b",
+        "${workspaceFolder}\\Project.uvprojx",
+        "-t",
+        "Target 1",
+        "-o",
+        "${workspaceFolder}\\build.log"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Keil Rebuild",
+      "type": "shell",
+      "command": "G:\\Keil5\\UV4\\UV4.exe",
+      "args": [
+        "-j0",
+        "-r",
+        "${workspaceFolder}\\Project.uvprojx",
+        "-t",
+        "Target 1",
+        "-o",
+        "${workspaceFolder}\\rebuild.log"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Keil Flash",
+      "type": "shell",
+      "command": "G:\\Keil5\\UV4\\UV4.exe",
+      "args": [
+        "-j0",
+        "-f",
+        "${workspaceFolder}\\Project.uvprojx",
+        "-t",
+        "Target 1",
+        "-o",
+        "${workspaceFolder}\\flash.log"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}
