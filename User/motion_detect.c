@@ -7,7 +7,7 @@
 #define MOVE_ACCEL_THRESHOLD      2000
 #define MOVE_GYRO_THRESHOLD       3500
 #define SHOCK_ACCEL_THRESHOLD     5000
-#define SHOCK_GYRO_THRESHOLD      8000
+#define SHOCK_GYRO_THRESHOLD      7000
 
 static int16_t BaselineAx = 0;
 static int16_t BaselineAy = 0;
