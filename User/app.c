@@ -14,7 +14,7 @@ static MotionState_t App_State;
 static uint32_t App_RunTimeMs = 0;
 static uint32_t App_LastEvent = MOTION_EVENT_NONE;
 
-static char *App_EventToString(uint8_t Event)
+static const char *App_EventToString(uint8_t Event)
 {
     switch (Event)
     {
@@ -46,7 +46,7 @@ static void App_PrintLastLogOnBoot(void)
         Serial_SendString(", Tick=");
         Serial_SendNumber(LastRecord.TickMs);
         Serial_SendString(" ms, EV=");
-        Serial_SendString(App_EventToString(LastRecord.Event));
+        Serial_SendString((char *)App_EventToString(LastRecord.Event));
         Serial_SendString("\r\n");
     }
     else
@@ -64,18 +64,33 @@ void App_Init(void)
     int32_t SumAz = 0;
     uint16_t i;
 
-    UI_Init();
-    Alarm_Init();
-    MPU6050_Init();
-    W25Qxx_Init();
-
+    /* 1. 先把串口调试口立起来，后面模块出问题时更容易定位 */
     Serial_Init();
-    Serial_SendString("BlackBox Boot OK\r\n");
+    Serial_SendString("[BOOT] Serial OK\r\n");
 
+    /* 2. 基础模块初始化 */
+    UI_Init();
+    Serial_SendString("[INIT] UI OK\r\n");
+
+    Alarm_Init();
+    Serial_SendString("[INIT] Alarm OK\r\n");
+
+    MPU6050_Init();
+    Serial_SendString("[INIT] MPU6050 OK\r\n");
+
+    W25Qxx_Init();
+    Serial_SendString("[INIT] W25QXX OK\r\n");
+
+    /* 3. 黑匣子日志模块初始化 */
     BlackBoxLog_Init();
+    Serial_SendString("[INIT] BlackBox OK\r\n");
+
+    /* 4. 启动时打印当前日志概况 */
     App_PrintLastLogOnBoot();
 
+    /* 5. 运动基准校准 */
     UI_ShowMessage("BlackBox Init", "Calibrating...", "Keep Still", "");
+    Serial_SendString("[INIT] Motion Calibrating...\r\n");
 
     for (i = 0; i < 100; i++)
     {
@@ -93,8 +108,11 @@ void App_Init(void)
     App_RunTimeMs = 0;
     App_LastEvent = MOTION_EVENT_NONE;
 
+    Serial_SendString("[INIT] Motion Baseline OK\r\n");
+
+    /* 6. 初始化完成 */
     UI_ShowMessage("Init OK", "Monitoring...", "", "");
-    Serial_SendString("System Init OK\r\n");
+    Serial_SendString("[BOOT] System Init OK\r\n");
     Delay_ms(500);
 }
 
@@ -122,7 +140,7 @@ void App_Loop(void)
             Serial_SendString(", ");
             Serial_SendNumber(App_RunTimeMs);
             Serial_SendString(" ms, EV=");
-            Serial_SendString(App_EventToString(App_State.Event));
+            Serial_SendString((char *)App_EventToString(App_State.Event));
             Serial_SendString("\r\n");
         }
         else
@@ -130,14 +148,16 @@ void App_Loop(void)
             Serial_SendString("[LOG] Append Failed\r\n");
         }
     }
+
+    /* 只在状态变化时打印事件变化 */
     if (App_State.Event != App_LastEvent)
     {
         Serial_SendString("[EV] ");
         Serial_SendNumber(App_RunTimeMs);
         Serial_SendString(" ms, ");
-        Serial_SendString(App_EventToString(App_LastEvent));
+        Serial_SendString((char *)App_EventToString(App_LastEvent));
         Serial_SendString(" -> ");
-        Serial_SendString(App_EventToString(App_State.Event));
+        Serial_SendString((char *)App_EventToString(App_State.Event));
         Serial_SendString("\r\n");
     }
 

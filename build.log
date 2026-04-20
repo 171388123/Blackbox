@@ -17,10 +17,10 @@ User\alarm.h(9): warning:  #1-D: last line of file ends without a newline
   #endif
 .\Hardware\serial.h(11): warning:  #1-D: last line of file ends without a newline
   #endif
-User\app.c(150): warning:  #1-D: last line of file ends without a newline
+User\app.c(170): warning:  #1-D: last line of file ends without a newline
   }
 User\app.c: 9 warnings, 0 errors
 linking...
-Program Size: Code=9438 RO-data=1790 RW-data=52 ZI-data=1644  
+Program Size: Code=9642 RO-data=1790 RW-data=52 ZI-data=1644  
 ".\Objects\Project.axf" - 0 Error(s), 9 Warning(s).
 Build Time Elapsed:  00:00:00

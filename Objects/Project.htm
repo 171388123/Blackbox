@@ -3,7 +3,7 @@
 <title>Static Call Graph - [.\Objects\Project.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image .\Objects\Project.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060528: Last Updated: Mon Apr 20 18:36:34 2026
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060528: Last Updated: Mon Apr 20 19:30:21 2026
 <BR><P>
 <H3>Maximum Stack Usage =        192 bytes + Unknown(Functions without stacksize, Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -439,16 +439,16 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[61]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;App_Loop
 </UL>
 
-<P><STRONG><a name="[55]"></a>App_Init</STRONG> (Thumb, 196 bytes, Stack size 64 bytes, app.o(i.App_Init))
+<P><STRONG><a name="[55]"></a>App_Init</STRONG> (Thumb, 238 bytes, Stack size 64 bytes, app.o(i.App_Init))
 <BR><BR>[Stack]<UL><LI>Max Depth = 184<LI>Call Chain = App_Init &rArr; MotionDetect_SetBaseline &rArr; MotionDetect_CalcRoll_x10 &rArr; sqrtf &rArr; _fsqrt &rArr; __fpl_fnaninf
 </UL>
-<BR>[Calls]<UL><LI><a href="#[58]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;W25Qxx_Init
+<BR>[Calls]<UL><LI><a href="#[5a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;W25Qxx_Init
 <LI><a href="#[5d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;UI_ShowMessage
-<LI><a href="#[56]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;UI_Init
-<LI><a href="#[5a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_SendString
-<LI><a href="#[59]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_Init
+<LI><a href="#[58]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;UI_Init
+<LI><a href="#[57]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_SendString
+<LI><a href="#[56]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_Init
 <LI><a href="#[60]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MotionDetect_SetBaseline
-<LI><a href="#[57]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MPU6050_Init
+<LI><a href="#[59]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MPU6050_Init
 <LI><a href="#[5e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MPU6050_GetData
 <LI><a href="#[5b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;BlackBoxLog_Init
 <LI><a href="#[50]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Alarm_Init
@@ -462,7 +462,7 @@ Global Symbols
 <BR><BR>[Stack]<UL><LI>Max Depth = 192<LI>Call Chain = App_Loop &rArr; MotionDetect_Update &rArr; MotionDetect_CalcRoll_x10 &rArr; sqrtf &rArr; _fsqrt &rArr; __fpl_fnaninf
 </UL>
 <BR>[Calls]<UL><LI><a href="#[67]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;UI_Update
-<LI><a href="#[5a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_SendString
+<LI><a href="#[57]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_SendString
 <LI><a href="#[65]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_SendNumber
 <LI><a href="#[62]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MotionDetect_Update
 <LI><a href="#[5e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MPU6050_GetData
@@ -572,7 +572,7 @@ Global Symbols
 <BR><BR>[Stack]<UL><LI>Max Depth = 24<LI>Call Chain = GPIO_Init
 </UL>
 <BR>[Called By]<UL><LI><a href="#[51]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Buzzer_Init
-<LI><a href="#[59]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_Init
+<LI><a href="#[56]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_Init
 <LI><a href="#[80]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MySPI_Init
 <LI><a href="#[74]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SoftI2C_Init
 <LI><a href="#[a7]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SoftI2C_SDA_Mode_Out
@@ -622,7 +622,7 @@ Global Symbols
 <LI><a href="#[55]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;App_Init
 </UL>
 
-<P><STRONG><a name="[57]"></a>MPU6050_Init</STRONG> (Thumb, 56 bytes, Stack size 8 bytes, mpu6050.o(i.MPU6050_Init))
+<P><STRONG><a name="[59]"></a>MPU6050_Init</STRONG> (Thumb, 56 bytes, Stack size 8 bytes, mpu6050.o(i.MPU6050_Init))
 <BR><BR>[Stack]<UL><LI>Max Depth = 88<LI>Call Chain = MPU6050_Init &rArr; MPU6050_WriteReg &rArr; SoftI2C_WriteReg &rArr; SoftI2C_SendByte &rArr; SoftI2C_SDA_Mode_Out &rArr; GPIO_Init
 </UL>
 <BR>[Calls]<UL><LI><a href="#[75]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MPU6050_WriteReg
@@ -662,7 +662,7 @@ Global Symbols
 <LI><a href="#[81]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SPI_Init
 <LI><a href="#[82]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SPI_Cmd
 </UL>
-<BR>[Called By]<UL><LI><a href="#[58]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;W25Qxx_Init
+<BR>[Called By]<UL><LI><a href="#[5a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;W25Qxx_Init
 </UL>
 
 <P><STRONG><a name="[83]"></a>MySPI_Start</STRONG> (Thumb, 12 bytes, Stack size 8 bytes, myspi.o(i.MySPI_Start))
@@ -714,7 +714,7 @@ Global Symbols
 </UL>
 <BR>[Called By]<UL><LI><a href="#[91]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;OLED_Init
 <LI><a href="#[5d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;UI_ShowMessage
-<LI><a href="#[56]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;UI_Init
+<LI><a href="#[58]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;UI_Init
 </UL>
 
 <P><STRONG><a name="[8c]"></a>OLED_I2C_Init</STRONG> (Thumb, 76 bytes, Stack size 8 bytes, oled.o(i.OLED_I2C_Init))
@@ -761,7 +761,7 @@ Global Symbols
 <LI><a href="#[92]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;OLED_WriteCommand
 <LI><a href="#[8c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;OLED_I2C_Init
 </UL>
-<BR>[Called By]<UL><LI><a href="#[56]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;UI_Init
+<BR>[Called By]<UL><LI><a href="#[58]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;UI_Init
 </UL>
 
 <P><STRONG><a name="[95]"></a>OLED_Pow</STRONG> (Thumb, 20 bytes, Stack size 8 bytes, oled.o(i.OLED_Pow))
@@ -846,7 +846,7 @@ Global Symbols
 </UL>
 <P><STRONG><a name="[6e]"></a>RCC_APB2PeriphClockCmd</STRONG> (Thumb, 26 bytes, Stack size 0 bytes, stm32f10x_rcc.o(i.RCC_APB2PeriphClockCmd))
 <BR><BR>[Called By]<UL><LI><a href="#[51]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Buzzer_Init
-<LI><a href="#[59]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_Init
+<LI><a href="#[56]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_Init
 <LI><a href="#[80]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MySPI_Init
 <LI><a href="#[74]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SoftI2C_Init
 <LI><a href="#[8c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;OLED_I2C_Init
@@ -883,7 +883,7 @@ Global Symbols
 <P><STRONG><a name="[9]"></a>SVC_Handler</STRONG> (Thumb, 2 bytes, Stack size 0 bytes, stm32f10x_it.o(i.SVC_Handler))
 <BR>[Address Reference Count : 1]<UL><LI> startup_stm32f10x_md.o(RESET)
 </UL>
-<P><STRONG><a name="[59]"></a>Serial_Init</STRONG> (Thumb, 120 bytes, Stack size 24 bytes, serial.o(i.Serial_Init))
+<P><STRONG><a name="[56]"></a>Serial_Init</STRONG> (Thumb, 120 bytes, Stack size 24 bytes, serial.o(i.Serial_Init))
 <BR><BR>[Stack]<UL><LI>Max Depth = 92<LI>Call Chain = Serial_Init &rArr; USART_Init &rArr; RCC_GetClocksFreq
 </UL>
 <BR>[Calls]<UL><LI><a href="#[6e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;RCC_APB2PeriphClockCmd
@@ -900,7 +900,7 @@ Global Symbols
 <BR>[Calls]<UL><LI><a href="#[9b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USART_SendData
 <LI><a href="#[9c]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;USART_GetFlagStatus
 </UL>
-<BR>[Called By]<UL><LI><a href="#[5a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_SendString
+<BR>[Called By]<UL><LI><a href="#[57]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_SendString
 <LI><a href="#[65]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_SendNumber
 </UL>
 
@@ -913,7 +913,7 @@ Global Symbols
 <LI><a href="#[61]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;App_Loop
 </UL>
 
-<P><STRONG><a name="[5a]"></a>Serial_SendString</STRONG> (Thumb, 22 bytes, Stack size 8 bytes, serial.o(i.Serial_SendString))
+<P><STRONG><a name="[57]"></a>Serial_SendString</STRONG> (Thumb, 22 bytes, Stack size 8 bytes, serial.o(i.Serial_SendString))
 <BR><BR>[Stack]<UL><LI>Max Depth = 16<LI>Call Chain = Serial_SendString &rArr; Serial_SendByte
 </UL>
 <BR>[Calls]<UL><LI><a href="#[9a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_SendByte
@@ -930,7 +930,7 @@ Global Symbols
 <LI><a href="#[8d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GPIO_WriteBit
 <LI><a href="#[6f]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;GPIO_Init
 </UL>
-<BR>[Called By]<UL><LI><a href="#[57]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MPU6050_Init
+<BR>[Called By]<UL><LI><a href="#[59]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MPU6050_Init
 </UL>
 
 <P><STRONG><a name="[73]"></a>SoftI2C_ReadRegs</STRONG> (Thumb, 88 bytes, Stack size 24 bytes, softi2c.o(i.SoftI2C_ReadRegs))
@@ -1022,7 +1022,7 @@ Global Symbols
 </UL>
 <BR>[Address Reference Count : 1]<UL><LI> startup_stm32f10x_md.o(.text)
 </UL>
-<P><STRONG><a name="[56]"></a>UI_Init</STRONG> (Thumb, 12 bytes, Stack size 8 bytes, ui.o(i.UI_Init))
+<P><STRONG><a name="[58]"></a>UI_Init</STRONG> (Thumb, 12 bytes, Stack size 8 bytes, ui.o(i.UI_Init))
 <BR><BR>[Stack]<UL><LI>Max Depth = 80<LI>Call Chain = UI_Init &rArr; OLED_Init &rArr; OLED_Clear &rArr; OLED_SetCursor &rArr; OLED_WriteCommand &rArr; OLED_I2C_SendByte
 </UL>
 <BR>[Calls]<UL><LI><a href="#[91]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;OLED_Init
@@ -1052,7 +1052,7 @@ Global Symbols
 </UL>
 
 <P><STRONG><a name="[99]"></a>USART_Cmd</STRONG> (Thumb, 24 bytes, Stack size 0 bytes, stm32f10x_usart.o(i.USART_Cmd))
-<BR><BR>[Called By]<UL><LI><a href="#[59]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_Init
+<BR><BR>[Called By]<UL><LI><a href="#[56]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_Init
 </UL>
 
 <P><STRONG><a name="[9c]"></a>USART_GetFlagStatus</STRONG> (Thumb, 26 bytes, Stack size 0 bytes, stm32f10x_usart.o(i.USART_GetFlagStatus))
@@ -1064,7 +1064,7 @@ Global Symbols
 </UL>
 <BR>[Calls]<UL><LI><a href="#[a9]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;RCC_GetClocksFreq
 </UL>
-<BR>[Called By]<UL><LI><a href="#[59]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_Init
+<BR>[Called By]<UL><LI><a href="#[56]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_Init
 </UL>
 
 <P><STRONG><a name="[9b]"></a>USART_SendData</STRONG> (Thumb, 8 bytes, Stack size 0 bytes, stm32f10x_usart.o(i.USART_SendData))
@@ -1074,7 +1074,7 @@ Global Symbols
 <P><STRONG><a name="[8]"></a>UsageFault_Handler</STRONG> (Thumb, 4 bytes, Stack size 0 bytes, stm32f10x_it.o(i.UsageFault_Handler))
 <BR>[Address Reference Count : 1]<UL><LI> startup_stm32f10x_md.o(RESET)
 </UL>
-<P><STRONG><a name="[58]"></a>W25Qxx_Init</STRONG> (Thumb, 8 bytes, Stack size 8 bytes, w25qxx.o(i.W25Qxx_Init))
+<P><STRONG><a name="[5a]"></a>W25Qxx_Init</STRONG> (Thumb, 8 bytes, Stack size 8 bytes, w25qxx.o(i.W25Qxx_Init))
 <BR><BR>[Stack]<UL><LI>Max Depth = 64<LI>Call Chain = W25Qxx_Init &rArr; MySPI_Init &rArr; GPIO_Init
 </UL>
 <BR>[Calls]<UL><LI><a href="#[80]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MySPI_Init
@@ -1318,7 +1318,7 @@ Local Symbols
 <P><STRONG><a name="[5c]"></a>App_PrintLastLogOnBoot</STRONG> (Thumb, 96 bytes, Stack size 40 bytes, app.o(i.App_PrintLastLogOnBoot))
 <BR><BR>[Stack]<UL><LI>Max Depth = 96<LI>Call Chain = App_PrintLastLogOnBoot &rArr; BlackBoxLog_ReadLast &rArr; BlackBoxLog_ReadByIndex &rArr; W25Qxx_ReadData &rArr; MySPI_SwapByte
 </UL>
-<BR>[Calls]<UL><LI><a href="#[5a]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_SendString
+<BR>[Calls]<UL><LI><a href="#[57]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_SendString
 <LI><a href="#[65]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;Serial_SendNumber
 <LI><a href="#[68]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;BlackBoxLog_ReadLast
 <LI><a href="#[64]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;BlackBoxLog_GetCount
@@ -1399,7 +1399,7 @@ Local Symbols
 </UL>
 <BR>[Calls]<UL><LI><a href="#[76]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;SoftI2C_WriteReg
 </UL>
-<BR>[Called By]<UL><LI><a href="#[57]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MPU6050_Init
+<BR>[Called By]<UL><LI><a href="#[59]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;MPU6050_Init
 </UL>
 
 <P><STRONG><a name="[ac]"></a>W25Qxx_ReadStatusReg1</STRONG> (Thumb, 28 bytes, Stack size 8 bytes, w25qxx.o(i.W25Qxx_ReadStatusReg1))
