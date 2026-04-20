@@ -1,0 +1,25 @@
+# Keil build output
+Objects/
+Listings/
+
+# Build logs and output files
+*.o
+*.d
+*.axf
+*.map
+*.lst
+*.crf
+*.dep
+build.log
+
+# Keil user/local files
+*.uvgui.*
+*.uvoptx
+
+# VSCode local cache
+.vscode/ipch/
+.vscode/*.browse.VC.db*
+
+# OS junk
+.DS_Store
+Thumbs.db
