@@ -36,3 +36,4 @@
 .\objects\app.o: User\ui.h
 .\objects\app.o: User\alarm.h
 .\objects\app.o: .\Hardware\W25QXX.h
+.\objects\app.o: .\Hardware\serial.h
