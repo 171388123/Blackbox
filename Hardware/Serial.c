@@ -1,5 +1,8 @@
 #include "Serial.h"
 
+static volatile uint8_t Serial_RxData;
+static volatile uint8_t Serial_RxFlag;
+
 void Serial_Init(void)
 {
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);
@@ -24,16 +27,28 @@ void Serial_Init(void)
     USART_InitStructure.USART_WordLength = USART_WordLength_8b;
     USART_Init(USART1, &USART_InitStructure);
 
+    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
+
+    NVIC_InitTypeDef NVIC_InitStructure;
+    NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
+    NVIC_Init(&NVIC_InitStructure);
+
+    USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
+
     USART_Cmd(USART1, ENABLE);
 }
 
 void Serial_SendByte(uint8_t Byte)
 {
     USART_SendData(USART1, Byte);
-    while (USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET);
+    while (USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET)
+        ;
 }
 
-void Serial_SendString(char *String)
+void Serial_SendString(const char *String)
 {
     while (*String != '\0')
     {
@@ -63,5 +78,29 @@ void Serial_SendNumber(uint32_t Number)
     for (j = 0; j < i; j++)
     {
         Serial_SendByte(Buffer[i - 1 - j]);
+    }
+}
+
+uint8_t Serial_GetRxFlag(void)
+{
+    if (Serial_RxFlag == 1)
+    {
+        Serial_RxFlag = 0;
+        return 1;
+    }
+    return 0;
+}
+
+uint8_t Serial_GetRxData(void)
+{
+    return Serial_RxData;
+}
+
+void USART1_IRQHandler(void)
+{
+    if (USART_GetITStatus(USART1, USART_IT_RXNE) == SET)
+    {
+        Serial_RxData = (uint8_t)USART_ReceiveData(USART1);
+        Serial_RxFlag = 1;
     }
 }
