@@ -16,6 +16,50 @@ static uint32_t BlackBox_NextWriteAddr = BLACKBOX_LOG_BASE_ADDR;
 static uint32_t BlackBox_RecordCount = 0;
 static uint32_t BlackBox_NextSeq = 0;
 
+static uint8_t BlackBox_IsRecordErased(const BlackBoxRecord_t *Record)
+{
+    const uint8_t *p = (const uint8_t *)Record;
+    uint32_t i;
+
+    for (i = 0; i < BLACKBOX_RECORD_SIZE; i++)
+    {
+        if (p[i] != 0xFF)
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static uint8_t BlackBox_IsRecordEqual(const BlackBoxRecord_t *A, const BlackBoxRecord_t *B)
+{
+    const uint8_t *pA = (const uint8_t *)A;
+    const uint8_t *pB = (const uint8_t *)B;
+    uint32_t i;
+
+    for (i = 0; i < BLACKBOX_RECORD_SIZE; i++)
+    {
+        if (pA[i] != pB[i])
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static void BlackBox_ClearRecord(BlackBoxRecord_t *Record)
+{
+    uint8_t *p = (uint8_t *)Record;
+    uint32_t i;
+
+    for (i = 0; i < BLACKBOX_RECORD_SIZE; i++)
+    {
+        p[i] = 0;
+    }
+}
+
 void BlackBoxLog_Format(void)
 {
     uint32_t i;
@@ -49,10 +93,20 @@ void BlackBoxLog_Init(void)
             BlackBox_NextSeq = Record.Seq + 1;
             BlackBox_NextWriteAddr = addr + BLACKBOX_RECORD_SIZE;
         }
+        else if (BlackBox_IsRecordErased(&Record))
+        {
+            /* 遇到真正空白区域，说明日志到这里结束 */
+            BlackBox_NextWriteAddr = addr;
+            return;
+        }
         else
         {
-            /* 遇到空白或无效数据，就认为后面还没写 */
-            BlackBox_NextWriteAddr = addr;
+            /*
+             * 既不是有效记录，也不是空白区：
+             * 说明这个位置是脏数据/异常数据。
+             * 对当前这个小项目，直接格式化整个日志区，保证后续行为确定。
+             */
+            BlackBoxLog_Format();
             return;
         }
     }
@@ -75,11 +129,31 @@ uint8_t BlackBoxLog_Append(BlackBoxTime_t *Time,
                            uint32_t GD)
 {
     BlackBoxRecord_t Record;
+    BlackBoxRecord_t VerifyRecord;
+
+    if (Time == 0)
+    {
+        return 0;
+    }
 
     if (BlackBox_NextWriteAddr >= BLACKBOX_LOG_END_ADDR)
     {
         BlackBoxLog_Format();
     }
+
+    /* 写之前先确认当前位置真的是空白区 */
+    W25Qxx_ReadData(BlackBox_NextWriteAddr, (uint8_t *)&VerifyRecord, BLACKBOX_RECORD_SIZE);
+    if (!BlackBox_IsRecordErased(&VerifyRecord))
+    {
+        /*
+         * 理论上 Init 后 NextWriteAddr 应该指向空白区。
+         * 如果这里不是空白区，说明日志区状态已经不可信。
+         * 对当前项目直接格式化，避免继续往脏区域写。
+         */
+        BlackBoxLog_Format();
+    }
+
+    BlackBox_ClearRecord(&Record);
 
     Record.Magic = BLACKBOX_LOG_MAGIC;
     Record.Seq = BlackBox_NextSeq;
@@ -90,7 +164,15 @@ uint8_t BlackBoxLog_Append(BlackBoxTime_t *Time,
     Record.AD = AD;
     Record.GD = GD;
     Record.Time = *Time;
+
     W25Qxx_PageProgram(BlackBox_NextWriteAddr, (uint8_t *)&Record, BLACKBOX_RECORD_SIZE);
+
+    /* 写完立刻回读校验，防止“假保存成功” */
+    W25Qxx_ReadData(BlackBox_NextWriteAddr, (uint8_t *)&VerifyRecord, BLACKBOX_RECORD_SIZE);
+    if (!BlackBox_IsRecordEqual(&Record, &VerifyRecord))
+    {
+        return 0;
+    }
 
     BlackBox_NextWriteAddr += BLACKBOX_RECORD_SIZE;
     BlackBox_RecordCount++;
