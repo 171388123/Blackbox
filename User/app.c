@@ -7,19 +7,187 @@
 #include "alarm.h"
 #include "W25QXX.h"
 #include "Serial.h"
+#include "stm32f10x_rcc.h"
+#include "stm32f10x_tim.h"
+#include "misc.h"
 
-#define APP_LOOP_PERIOD_MS 50
+#define APP_LOOP_PERIOD_MS   50
+#define APP_CMD_BUF_SIZE     32
 
-/* 如果你的 Serial.h 里还没声明这两个函数，
-   这两个 extern 可以先顶着用，避免 app.c 报未声明 */
-extern uint8_t Serial_GetRxFlag(void);
-extern uint8_t Serial_GetRxData(void);
+typedef BlackBoxTime_t AppTime_t;
+static AppTime_t App_CurrentTime = {2026, 4, 22, 16, 0, 0};
+static uint16_t App_TimeMsAcc = 0;
 
 static MotionState_t App_State;
 static uint32_t App_RunTimeMs = 0;
 static uint8_t App_LastEvent = MOTION_EVENT_NONE;
+static volatile uint32_t App_RealMsTick = 0;
+static uint32_t App_LastRealMsTick = 0;
+static uint8_t App_WaitTimeCmd = 0;
+static char App_CmdBuf[APP_CMD_BUF_SIZE];
+static uint8_t App_CmdIndex = 0;
 
-static char *App_EventToString(uint8_t Event)
+static void App_RealTimeBaseInit(void)
+{
+    TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
+    NVIC_InitTypeDef NVIC_InitStructure;
+
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
+
+    TIM_TimeBaseStructure.TIM_Prescaler = 7200 - 1;      /* 72MHz / 7200 = 10kHz */
+    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
+    TIM_TimeBaseStructure.TIM_Period = 10 - 1;           /* 10kHz / 10 = 1kHz -> 1ms */
+    TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1;
+    TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
+    TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
+
+    TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
+    TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
+
+    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
+    NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+
+    TIM_Cmd(TIM2, ENABLE);
+}
+
+static void App_SyncTimeByRealTick(void)
+{
+    uint32_t NowMs;
+    uint32_t DeltaMs;
+
+    NowMs = App_RealMsTick;
+    DeltaMs = NowMs - App_LastRealMsTick;
+    App_LastRealMsTick = NowMs;
+
+    App_RunTimeMs = NowMs;
+
+    if (DeltaMs > 0)
+    {
+        App_TimeMsAcc += DeltaMs;
+
+        while (App_TimeMsAcc >= 1000)
+        {
+            App_TimeMsAcc -= 1000;
+            App_CurrentTime.Second++;
+
+            if (App_CurrentTime.Second >= 60)
+            {
+                App_CurrentTime.Second = 0;
+                App_CurrentTime.Minute++;
+
+                if (App_CurrentTime.Minute >= 60)
+                {
+                    App_CurrentTime.Minute = 0;
+                    App_CurrentTime.Hour++;
+
+                    if (App_CurrentTime.Hour >= 24)
+                    {
+                        App_CurrentTime.Hour = 0;
+                        App_CurrentTime.Day++;
+
+                        /* 这里先简化处理，不跨月底就够你当前实验用了 */
+                    }
+                }
+            }
+        }
+    }
+}
+
+void TIM2_IRQHandler(void)
+{
+    if (TIM_GetITStatus(TIM2, TIM_IT_Update) == SET)
+    {
+        TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
+        App_RealMsTick++;
+    }
+}
+
+static uint8_t App_IsLeapYear(uint16_t Year)
+{
+    if ((Year % 400) == 0) return 1;
+    if ((Year % 100) == 0) return 0;
+    if ((Year % 4) == 0) return 1;
+    return 0;
+}
+
+static uint8_t App_GetMonthDays(uint16_t Year, uint8_t Month)
+{
+    static const uint8_t Days[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
+
+    if (Month == 2)
+    {
+        return App_IsLeapYear(Year) ? 29 : 28;
+    }
+
+    if ((Month >= 1) && (Month <= 12))
+    {
+        return Days[Month - 1];
+    }
+
+    return 30;
+}
+
+static void App_TimeTick1s(AppTime_t *Time)
+{
+    Time->Second++;
+
+    if (Time->Second >= 60)
+    {
+        Time->Second = 0;
+        Time->Minute++;
+
+        if (Time->Minute >= 60)
+        {
+            Time->Minute = 0;
+            Time->Hour++;
+
+            if (Time->Hour >= 24)
+            {
+                Time->Hour = 0;
+                Time->Day++;
+
+                if (Time->Day > App_GetMonthDays(Time->Year, Time->Month))
+                {
+                    Time->Day = 1;
+                    Time->Month++;
+
+                    if (Time->Month > 12)
+                    {
+                        Time->Month = 1;
+                        Time->Year++;
+                    }
+                }
+            }
+        }
+    }
+}
+
+static void App_Send2Digits(uint8_t Value)
+{
+    Serial_SendByte((Value / 10) + '0');
+    Serial_SendByte((Value % 10) + '0');
+}
+
+static void App_PrintTime(const AppTime_t *Time)
+{
+    Serial_SendNumber(Time->Year);
+    Serial_SendByte('-');
+    App_Send2Digits(Time->Month);
+    Serial_SendByte('-');
+    App_Send2Digits(Time->Day);
+    Serial_SendByte(' ');
+    App_Send2Digits(Time->Hour);
+    Serial_SendByte(':');
+    App_Send2Digits(Time->Minute);
+    Serial_SendByte(':');
+    App_Send2Digits(Time->Second);
+}
+
+static const char *App_EventToString(uint8_t Event)
 {
     switch (Event)
     {
@@ -34,16 +202,6 @@ static char *App_EventToString(uint8_t Event)
     default:
         return "UNK";
     }
-}
-
-static void App_SendSignedNumber(int32_t Number)
-{
-    if (Number < 0)
-    {
-        Serial_SendByte('-');
-        Number = -Number;
-    }
-    Serial_SendNumber((uint32_t)Number);
 }
 
 static void App_SendX10(int16_t ValueX10)
@@ -68,6 +226,7 @@ static void App_SendX10(int16_t ValueX10)
 static void App_PrintHelp(void)
 {
     Serial_SendString("[CMD] H/?=help, N=now, L=last, C=clear\r\n");
+    Serial_SendString("[CMD] T yyyy-mm-dd hh:mm:ss  -> set time\r\n");
 }
 
 static void App_PrintLastLogOnBoot(void)
@@ -85,7 +244,7 @@ static void App_PrintLastLogOnBoot(void)
         Serial_SendString(", Tick=");
         Serial_SendNumber(LastRecord.TickMs);
         Serial_SendString(" ms, EV=");
-        Serial_SendString(App_EventToString(LastRecord.Event));
+        Serial_SendString(App_EventToString((uint8_t)LastRecord.Event));
         Serial_SendString("\r\n");
     }
     else
@@ -96,7 +255,10 @@ static void App_PrintLastLogOnBoot(void)
 
 static void App_PrintNowState(void)
 {
-    Serial_SendString("[NOW] Tick=");
+    Serial_SendString("[NOW] Time=");
+    App_PrintTime(&App_CurrentTime);
+
+    Serial_SendString(", Tick=");
     Serial_SendNumber(App_RunTimeMs);
     Serial_SendString(" ms, EV=");
     Serial_SendString(App_EventToString(App_State.Event));
@@ -135,13 +297,13 @@ static void App_PrintLastLog(void)
         Serial_SendString(", Tick=");
         Serial_SendNumber(Record.TickMs);
         Serial_SendString(" ms, EV=");
-        Serial_SendString(App_EventToString(Record.Event));
+        Serial_SendString(App_EventToString((uint8_t)Record.Event));
 
         Serial_SendString(", Pitch=");
-        App_SendX10(Record.Pitch_x10);
+        App_SendX10((int16_t)Record.Pitch_x10);
 
         Serial_SendString(", Roll=");
-        App_SendX10(Record.Roll_x10);
+        App_SendX10((int16_t)Record.Roll_x10);
 
         Serial_SendString(", AD=");
         Serial_SendNumber(Record.AD);
@@ -157,28 +319,138 @@ static void App_PrintLastLog(void)
     }
 }
 
-static void App_HandleSerialCmd(void)
+static uint8_t App_IsDigit(char Ch)
 {
-    uint8_t Cmd;
+    return (Ch >= '0') && (Ch <= '9');
+}
 
-    if (Serial_GetRxFlag() == 0)
+static uint16_t App_Parse4Digits(const char *Str)
+{
+    return (uint16_t)((Str[0] - '0') * 1000 +
+                      (Str[1] - '0') * 100 +
+                      (Str[2] - '0') * 10 +
+                      (Str[3] - '0'));
+}
+
+static uint8_t App_Parse2Digits(const char *Str)
+{
+    return (uint8_t)((Str[0] - '0') * 10 +
+                     (Str[1] - '0'));
+}
+
+static uint8_t App_ParseTimeString(const char *Str, AppTime_t *Time)
+{
+    uint8_t i;
+
+    if (Str == 0 || Time == 0)
     {
-        return;
+        return 0;
     }
 
-    Cmd = Serial_GetRxData();
-
-    /* 过滤串口工具顺手发过来的回车换行 */
-    if ((Cmd == '\r') || (Cmd == '\n') || (Cmd == ' '))
+    while (*Str == ' ')
     {
-        return;
+        Str++;
     }
 
-    /* 回显一下，方便你调试“到底收没收到” */
-    Serial_SendString("[RX] ");
-    Serial_SendByte(Cmd);
-    Serial_SendString("\r\n");
+    for (i = 0; i < 19; i++)
+    {
+        if (Str[i] == '\0')
+        {
+            return 0;
+        }
+    }
 
+    if (Str[19] != '\0')
+    {
+        return 0;
+    }
+
+    if ((!App_IsDigit(Str[0])) || (!App_IsDigit(Str[1])) ||
+        (!App_IsDigit(Str[2])) || (!App_IsDigit(Str[3])) ||
+        (Str[4] != '-') ||
+        (!App_IsDigit(Str[5])) || (!App_IsDigit(Str[6])) ||
+        (Str[7] != '-') ||
+        (!App_IsDigit(Str[8])) || (!App_IsDigit(Str[9])) ||
+        (Str[10] != ' ') ||
+        (!App_IsDigit(Str[11])) || (!App_IsDigit(Str[12])) ||
+        (Str[13] != ':') ||
+        (!App_IsDigit(Str[14])) || (!App_IsDigit(Str[15])) ||
+        (Str[16] != ':') ||
+        (!App_IsDigit(Str[17])) || (!App_IsDigit(Str[18])))
+    {
+        return 0;
+    }
+
+    Time->Year   = App_Parse4Digits(&Str[0]);
+    Time->Month  = App_Parse2Digits(&Str[5]);
+    Time->Day    = App_Parse2Digits(&Str[8]);
+    Time->Hour   = App_Parse2Digits(&Str[11]);
+    Time->Minute = App_Parse2Digits(&Str[14]);
+    Time->Second = App_Parse2Digits(&Str[17]);
+
+    if ((Time->Month < 1) || (Time->Month > 12))
+    {
+        return 0;
+    }
+
+    if ((Time->Day < 1) || (Time->Day > App_GetMonthDays(Time->Year, Time->Month)))
+    {
+        return 0;
+    }
+
+    if (Time->Hour > 23)
+    {
+        return 0;
+    }
+
+    if (Time->Minute > 59)
+    {
+        return 0;
+    }
+
+    if (Time->Second > 59)
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+static void App_ResetCmdBuffer(void)
+{
+    App_WaitTimeCmd = 0;
+    App_CmdIndex = 0;
+    App_CmdBuf[0] = '\0';
+}
+
+static void App_SetCurrentTime(const AppTime_t *Time)
+{
+    App_CurrentTime = *Time;
+    App_TimeMsAcc = 0;
+}
+
+static void App_ExecuteTimeSet(void)
+{
+    AppTime_t NewTime;
+
+    if (App_ParseTimeString(App_CmdBuf, &NewTime))
+    {
+        App_SetCurrentTime(&NewTime);
+        Serial_SendString("[CMD] Time set OK: ");
+        App_PrintTime(&App_CurrentTime);
+        Serial_SendString("\r\n");
+    }
+    else
+    {
+        Serial_SendString("[CMD] Bad time format\r\n");
+        Serial_SendString("[CMD] Use: T 2026-04-21 16:00:38\r\n");
+    }
+
+    App_ResetCmdBuffer();
+}
+
+static void App_HandleNormalCmd(uint8_t Cmd)
+{
     if ((Cmd >= 'a') && (Cmd <= 'z'))
     {
         Cmd = Cmd - 'a' + 'A';
@@ -202,12 +474,16 @@ static void App_HandleSerialCmd(void)
     case 'C':
         BlackBoxLog_Format();
 
-        /* 很关键：
-           清空日志时，把“上一状态”同步成当前状态，
-           防止刚清完又因为状态切换判断立刻补写一条 */
         App_LastEvent = App_State.Event;
 
         Serial_SendString("[CMD] Logs cleared, count=0\r\n");
+        break;
+
+    case 'T':
+        App_WaitTimeCmd = 1;
+        App_CmdIndex = 0;
+        App_CmdBuf[0] = '\0';
+        Serial_SendString("[CMD] Input time: T 2026-04-21 16:00:38\r\n");
         break;
 
     default:
@@ -216,6 +492,82 @@ static void App_HandleSerialCmd(void)
         Serial_SendString("\r\n");
         App_PrintHelp();
         break;
+    }
+}
+
+static void App_HandleTimeCmdChar(uint8_t Ch)
+{
+    AppTime_t NewTime;
+
+    if (Ch == '\r' || Ch == '\n')
+    {
+        if (App_CmdIndex > 0)
+        {
+            App_CmdBuf[App_CmdIndex] = '\0';
+            App_ExecuteTimeSet();
+        }
+        return;
+    }
+
+    if (App_CmdIndex < (APP_CMD_BUF_SIZE - 1))
+    {
+        App_CmdBuf[App_CmdIndex++] = (char)Ch;
+        App_CmdBuf[App_CmdIndex] = '\0';
+    }
+    else
+    {
+        Serial_SendString("[CMD] Time string too long\r\n");
+        App_ResetCmdBuffer();
+        return;
+    }
+
+    while (App_CmdBuf[0] == ' ')
+    {
+        uint8_t i;
+        for (i = 0; i < App_CmdIndex; i++)
+        {
+            App_CmdBuf[i] = App_CmdBuf[i + 1];
+        }
+        if (App_CmdIndex > 0)
+        {
+            App_CmdIndex--;
+        }
+    }
+
+    if (App_ParseTimeString(App_CmdBuf, &NewTime))
+    {
+        App_SetCurrentTime(&NewTime);
+        Serial_SendString("[CMD] Time set OK: ");
+        App_PrintTime(&App_CurrentTime);
+        Serial_SendString("\r\n");
+        App_ResetCmdBuffer();
+    }
+}
+
+static void App_HandleSerialCmd(void)
+{
+    uint8_t Ch;
+
+    while (Serial_GetRxFlag())
+    {
+        Ch = Serial_GetRxData();
+
+        if (App_WaitTimeCmd)
+        {
+            App_HandleTimeCmdChar(Ch);
+            continue;
+        }
+
+        if ((Ch == '\r') || (Ch == '\n') || (Ch == ' '))
+        {
+            continue;
+        }
+
+        Serial_SendString("[RX] ");
+        Serial_SendByte(Ch);
+        Serial_SendString("\r\n");
+
+        App_HandleNormalCmd(Ch);
     }
 }
 
@@ -229,7 +581,9 @@ void App_Init(void)
     uint16_t i;
 
     App_RunTimeMs = 0;
+    App_TimeMsAcc = 0;
     App_LastEvent = MOTION_EVENT_NONE;
+    App_ResetCmdBuffer();
 
     App_State.Pitch_x10 = 0;
     App_State.Roll_x10 = 0;
@@ -237,7 +591,6 @@ void App_Init(void)
     App_State.GyroAbsSum = 0;
     App_State.Event = MOTION_EVENT_NONE;
 
-    /* 串口放最前面，后面谁炸了都能看到 */
     Serial_Init();
     Serial_SendString("[BOOT] Serial OK\r\n");
 
@@ -255,6 +608,9 @@ void App_Init(void)
 
     BlackBoxLog_Init();
     Serial_SendString("[INIT] BlackBox OK\r\n");
+
+    App_RealTimeBaseInit();
+    App_LastRealMsTick = App_RealMsTick;
 
     App_PrintLastLogOnBoot();
 
@@ -285,9 +641,9 @@ void App_Init(void)
 
 void App_Loop(void)
 {
+    App_SyncTimeByRealTick();
     int16_t Ax, Ay, Az;
     int16_t Gx, Gy, Gz;
-
     MPU6050_GetData(&Ax, &Ay, &Az, &Gx, &Gy, &Gz);
 
     MotionDetect_Update(&App_State, Ax, Ay, Az, Gx, Gy, Gz);
@@ -304,12 +660,13 @@ void App_Loop(void)
 
         if (App_State.Event != MOTION_EVENT_NONE)
         {
-            if (BlackBoxLog_Append(App_RunTimeMs,
-                                   App_State.Event,
-                                   App_State.Pitch_x10,
-                                   App_State.Roll_x10,
-                                   App_State.AccelDelta,
-                                   App_State.GyroAbsSum))
+            if (BlackBoxLog_Append(&App_CurrentTime,
+                       App_RunTimeMs,
+                       App_State.Event,
+                       App_State.Pitch_x10,
+                       App_State.Roll_x10,
+                       App_State.AccelDelta,
+                       App_State.GyroAbsSum))
             {
                 Serial_SendString("[LOG] #");
                 Serial_SendNumber(BlackBoxLog_GetCount());
@@ -334,5 +691,4 @@ void App_Loop(void)
     Alarm_Update(App_State.Event, App_RunTimeMs);
 
     Delay_ms(APP_LOOP_PERIOD_MS);
-    App_RunTimeMs += APP_LOOP_PERIOD_MS;
 }

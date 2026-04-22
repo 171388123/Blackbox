@@ -9,6 +9,6 @@ int main(void)
     while (1)
     {
         App_Loop();
-        Delay_ms(50);
+        
     }
 }

@@ -1,7 +1,21 @@
 #include "Serial.h"
 
-static volatile uint8_t Serial_RxData;
-static volatile uint8_t Serial_RxFlag;
+#define SERIAL_RX_BUFFER_SIZE 64
+
+static volatile uint8_t Serial_RxBuffer[SERIAL_RX_BUFFER_SIZE];
+static volatile uint16_t Serial_RxHead = 0;
+static volatile uint16_t Serial_RxTail = 0;
+static volatile uint16_t Serial_RxOverflowCount = 0;
+
+static uint16_t Serial_NextIndex(uint16_t Index)
+{
+    Index++;
+    if (Index >= SERIAL_RX_BUFFER_SIZE)
+    {
+        Index = 0;
+    }
+    return Index;
+}
 
 void Serial_Init(void)
 {
@@ -83,24 +97,45 @@ void Serial_SendNumber(uint32_t Number)
 
 uint8_t Serial_GetRxFlag(void)
 {
-    if (Serial_RxFlag == 1)
-    {
-        Serial_RxFlag = 0;
-        return 1;
-    }
-    return 0;
+    return (Serial_RxHead != Serial_RxTail);
 }
 
 uint8_t Serial_GetRxData(void)
 {
-    return Serial_RxData;
+    uint8_t Data = 0;
+
+    if (Serial_RxHead != Serial_RxTail)
+    {
+        Data = Serial_RxBuffer[Serial_RxTail];
+        Serial_RxTail = Serial_NextIndex(Serial_RxTail);
+    }
+
+    return Data;
+}
+
+uint16_t Serial_GetRxOverflowCount(void)
+{
+    return Serial_RxOverflowCount;
 }
 
 void USART1_IRQHandler(void)
 {
     if (USART_GetITStatus(USART1, USART_IT_RXNE) == SET)
     {
-        Serial_RxData = (uint8_t)USART_ReceiveData(USART1);
-        Serial_RxFlag = 1;
+        uint8_t Data;
+        uint16_t NextHead;
+
+        Data = (uint8_t)USART_ReceiveData(USART1);
+        NextHead = Serial_NextIndex(Serial_RxHead);
+
+        if (NextHead != Serial_RxTail)
+        {
+            Serial_RxBuffer[Serial_RxHead] = Data;
+            Serial_RxHead = NextHead;
+        }
+        else
+        {
+            Serial_RxOverflowCount++;
+        }
     }
 }

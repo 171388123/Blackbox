@@ -66,7 +66,13 @@ uint32_t BlackBoxLog_GetCount(void)
     return BlackBox_RecordCount;
 }
 
-uint8_t BlackBoxLog_Append(uint32_t TickMs, uint32_t Event, int32_t Pitch_x10, int32_t Roll_x10, uint32_t AD, uint32_t GD)
+uint8_t BlackBoxLog_Append(BlackBoxTime_t *Time,
+                           uint32_t TickMs,
+                           uint32_t Event,
+                           int32_t Pitch_x10,
+                           int32_t Roll_x10,
+                           uint32_t AD,
+                           uint32_t GD)
 {
     BlackBoxRecord_t Record;
 
@@ -83,7 +89,7 @@ uint8_t BlackBoxLog_Append(uint32_t TickMs, uint32_t Event, int32_t Pitch_x10, i
     Record.Roll_x10 = Roll_x10;
     Record.AD = AD;
     Record.GD = GD;
-
+    Record.Time = *Time;
     W25Qxx_PageProgram(BlackBox_NextWriteAddr, (uint8_t *)&Record, BLACKBOX_RECORD_SIZE);
 
     BlackBox_NextWriteAddr += BLACKBOX_RECORD_SIZE;
