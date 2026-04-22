@@ -11,8 +11,8 @@
 #include "stm32f10x_tim.h"
 #include "misc.h"
 
-#define APP_LOOP_PERIOD_MS   50
-#define APP_CMD_BUF_SIZE     32
+#define APP_LOOP_PERIOD_MS 50
+#define APP_CMD_BUF_SIZE 64
 
 typedef BlackBoxTime_t AppTime_t;
 static AppTime_t App_CurrentTime = {2026, 4, 22, 16, 0, 0};
@@ -23,7 +23,6 @@ static uint32_t App_RunTimeMs = 0;
 static uint8_t App_LastEvent = MOTION_EVENT_NONE;
 static volatile uint32_t App_RealMsTick = 0;
 static uint32_t App_LastRealMsTick = 0;
-static uint8_t App_WaitTimeCmd = 0;
 static char App_CmdBuf[APP_CMD_BUF_SIZE];
 static uint8_t App_CmdIndex = 0;
 
@@ -34,9 +33,9 @@ static void App_RealTimeBaseInit(void)
 
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
 
-    TIM_TimeBaseStructure.TIM_Prescaler = 7200 - 1;      /* 72MHz / 7200 = 10kHz */
+    TIM_TimeBaseStructure.TIM_Prescaler = 7200 - 1; /* 72MHz / 7200 = 10kHz */
     TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
-    TIM_TimeBaseStructure.TIM_Period = 10 - 1;           /* 10kHz / 10 = 1kHz -> 1ms */
+    TIM_TimeBaseStructure.TIM_Period = 10 - 1; /* 10kHz / 10 = 1kHz -> 1ms */
     TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1;
     TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
     TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
@@ -108,15 +107,18 @@ void TIM2_IRQHandler(void)
 
 static uint8_t App_IsLeapYear(uint16_t Year)
 {
-    if ((Year % 400) == 0) return 1;
-    if ((Year % 100) == 0) return 0;
-    if ((Year % 4) == 0) return 1;
+    if ((Year % 400) == 0)
+        return 1;
+    if ((Year % 100) == 0)
+        return 0;
+    if ((Year % 4) == 0)
+        return 1;
     return 0;
 }
 
 static uint8_t App_GetMonthDays(uint16_t Year, uint8_t Month)
 {
-    static const uint8_t Days[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
+    static const uint8_t Days[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
     if (Month == 2)
     {
@@ -223,10 +225,164 @@ static void App_SendX10(int16_t ValueX10)
     Serial_SendNumber((uint32_t)DecPart);
 }
 
+static void App_SendProtoTime(const AppTime_t *Time)
+{
+    Serial_SendNumber(Time->Year);
+    Serial_SendByte('-');
+    App_Send2Digits(Time->Month);
+    Serial_SendByte('-');
+    App_Send2Digits(Time->Day);
+    Serial_SendByte('_');
+    App_Send2Digits(Time->Hour);
+    Serial_SendByte(':');
+    App_Send2Digits(Time->Minute);
+    Serial_SendByte(':');
+    App_Send2Digits(Time->Second);
+}
+
+static char App_ToUpperChar(char Ch)
+{
+    if ((Ch >= 'a') && (Ch <= 'z'))
+    {
+        return (char)(Ch - 'a' + 'A');
+    }
+    return Ch;
+}
+
+static uint8_t App_StrEqualIgnoreCase(const char *A, const char *B)
+{
+    while ((*A != '\0') && (*B != '\0'))
+    {
+        if (App_ToUpperChar(*A) != App_ToUpperChar(*B))
+        {
+            return 0;
+        }
+        A++;
+        B++;
+    }
+
+    return ((*A == '\0') && (*B == '\0')) ? 1 : 0;
+}
+
+static uint8_t App_StrStartsWithIgnoreCase(const char *Str, const char *Prefix)
+{
+    while (*Prefix != '\0')
+    {
+        if (*Str == '\0')
+        {
+            return 0;
+        }
+
+        if (App_ToUpperChar(*Str) != App_ToUpperChar(*Prefix))
+        {
+            return 0;
+        }
+
+        Str++;
+        Prefix++;
+    }
+
+    return 1;
+}
+
+static void App_SendProtoOk(const char *Text)
+{
+    Serial_SendString("OK,");
+    Serial_SendString(Text);
+    Serial_SendString("\r\n");
+}
+
+static void App_SendProtoErr(const char *Text)
+{
+    Serial_SendString("ERR,");
+    Serial_SendString(Text);
+    Serial_SendString("\r\n");
+}
+
+static void App_SendProtoStat(const char *Prefix)
+{
+    Serial_SendString(Prefix);
+
+    Serial_SendString(",TIME=");
+    App_SendProtoTime(&App_CurrentTime);
+
+    Serial_SendString(",TICK=");
+    Serial_SendNumber(App_RunTimeMs);
+
+    Serial_SendString(",EV=");
+    Serial_SendString(App_EventToString(App_State.Event));
+
+    Serial_SendString(",PITCH=");
+    App_SendX10(App_State.Pitch_x10);
+
+    Serial_SendString(",ROLL=");
+    App_SendX10(App_State.Roll_x10);
+
+    Serial_SendString(",AD=");
+    Serial_SendNumber(App_State.AccelDelta);
+
+    Serial_SendString(",GD=");
+    Serial_SendNumber(App_State.GyroAbsSum);
+
+    Serial_SendString(",LOG=");
+    Serial_SendNumber(BlackBoxLog_GetCount());
+
+    Serial_SendString("\r\n");
+}
+
+static void App_SendProtoLast(void)
+{
+    BlackBoxRecord_t Record;
+
+    if (!BlackBoxLog_ReadLast(&Record))
+    {
+        Serial_SendString("LAST,NONE\r\n");
+        return;
+    }
+
+    Serial_SendString("LAST,SEQ=");
+    Serial_SendNumber(Record.Seq);
+
+    Serial_SendString(",TIME=");
+    App_SendProtoTime(&Record.Time);
+
+    Serial_SendString(",TICK=");
+    Serial_SendNumber(Record.TickMs);
+
+    Serial_SendString(",EV=");
+    Serial_SendString(App_EventToString((uint8_t)Record.Event));
+
+    Serial_SendString(",PITCH=");
+    App_SendX10((int16_t)Record.Pitch_x10);
+
+    Serial_SendString(",ROLL=");
+    App_SendX10((int16_t)Record.Roll_x10);
+
+    Serial_SendString(",AD=");
+    Serial_SendNumber(Record.AD);
+
+    Serial_SendString(",GD=");
+    Serial_SendNumber(Record.GD);
+
+    Serial_SendString("\r\n");
+}
+
+static uint8_t App_IsLegacySingleCmd(uint8_t Ch)
+{
+    char Cmd;
+
+    Cmd = App_ToUpperChar((char)Ch);
+
+    return (Cmd == 'H') || (Cmd == '?') ||
+           (Cmd == 'N') || (Cmd == 'L') ||
+           (Cmd == 'C');
+}
+
 static void App_PrintHelp(void)
 {
-    Serial_SendString("[CMD] H/?=help, N=now, L=last, C=clear\r\n");
-    Serial_SendString("[CMD] T yyyy-mm-dd hh:mm:ss  -> set time\r\n");
+    Serial_SendString("[CMD] HELP / PING / GET / LAST / CLR\r\n");
+    Serial_SendString("[CMD] T yyyy-mm-dd hh:mm:ss\r\n");
+    Serial_SendString("[OLD] H/?/N/L/C still supported\r\n");
 }
 
 static void App_PrintLastLogOnBoot(void)
@@ -381,10 +537,10 @@ static uint8_t App_ParseTimeString(const char *Str, AppTime_t *Time)
         return 0;
     }
 
-    Time->Year   = App_Parse4Digits(&Str[0]);
-    Time->Month  = App_Parse2Digits(&Str[5]);
-    Time->Day    = App_Parse2Digits(&Str[8]);
-    Time->Hour   = App_Parse2Digits(&Str[11]);
+    Time->Year = App_Parse4Digits(&Str[0]);
+    Time->Month = App_Parse2Digits(&Str[5]);
+    Time->Day = App_Parse2Digits(&Str[8]);
+    Time->Hour = App_Parse2Digits(&Str[11]);
     Time->Minute = App_Parse2Digits(&Str[14]);
     Time->Second = App_Parse2Digits(&Str[17]);
 
@@ -418,7 +574,6 @@ static uint8_t App_ParseTimeString(const char *Str, AppTime_t *Time)
 
 static void App_ResetCmdBuffer(void)
 {
-    App_WaitTimeCmd = 0;
     App_CmdIndex = 0;
     App_CmdBuf[0] = '\0';
 }
@@ -429,119 +584,86 @@ static void App_SetCurrentTime(const AppTime_t *Time)
     App_TimeMsAcc = 0;
 }
 
-static void App_ExecuteTimeSet(void)
+static void App_HandleCmdLine(char *Line)
 {
     AppTime_t NewTime;
+    char *Cmd;
+    char *End;
 
-    if (App_ParseTimeString(App_CmdBuf, &NewTime))
+    Cmd = Line;
+    while (*Cmd == ' ')
     {
-        App_SetCurrentTime(&NewTime);
-        Serial_SendString("[CMD] Time set OK: ");
-        App_PrintTime(&App_CurrentTime);
-        Serial_SendString("\r\n");
-    }
-    else
-    {
-        Serial_SendString("[CMD] Bad time format\r\n");
-        Serial_SendString("[CMD] Use: T 2026-04-21 16:00:38\r\n");
+        Cmd++;
     }
 
-    App_ResetCmdBuffer();
-}
-
-static void App_HandleNormalCmd(uint8_t Cmd)
-{
-    if ((Cmd >= 'a') && (Cmd <= 'z'))
+    End = Cmd;
+    while (*End != '\0')
     {
-        Cmd = Cmd - 'a' + 'A';
+        End++;
     }
 
-    switch (Cmd)
+    while ((End > Cmd) && (*(End - 1) == ' '))
     {
-    case 'H':
-    case '?':
-        App_PrintHelp();
-        break;
+        End--;
+    }
+    *End = '\0';
 
-    case 'N':
-        App_PrintNowState();
-        break;
+    if (*Cmd == '\0')
+    {
+        return;
+    }
 
-    case 'L':
-        App_PrintLastLog();
-        break;
+    if (App_StrEqualIgnoreCase(Cmd, "PING"))
+    {
+        App_SendProtoOk("PONG");
+        return;
+    }
 
-    case 'C':
+    if (App_StrEqualIgnoreCase(Cmd, "GET") || App_StrEqualIgnoreCase(Cmd, "N"))
+    {
+        App_SendProtoStat("STAT");
+        return;
+    }
+
+    if (App_StrEqualIgnoreCase(Cmd, "LAST") || App_StrEqualIgnoreCase(Cmd, "L"))
+    {
+        App_SendProtoLast();
+        return;
+    }
+
+    if (App_StrEqualIgnoreCase(Cmd, "CLR") || App_StrEqualIgnoreCase(Cmd, "C"))
+    {
         BlackBoxLog_Format();
-
         App_LastEvent = App_State.Event;
+        App_SendProtoOk("CLR");
+        return;
+    }
 
-        Serial_SendString("[CMD] Logs cleared, count=0\r\n");
-        break;
-
-    case 'T':
-        App_WaitTimeCmd = 1;
-        App_CmdIndex = 0;
-        App_CmdBuf[0] = '\0';
-        Serial_SendString("[CMD] Input time: T 2026-04-21 16:00:38\r\n");
-        break;
-
-    default:
-        Serial_SendString("[CMD] Unknown cmd: ");
-        Serial_SendByte(Cmd);
-        Serial_SendString("\r\n");
+    if (App_StrEqualIgnoreCase(Cmd, "HELP") ||
+        App_StrEqualIgnoreCase(Cmd, "H") ||
+        App_StrEqualIgnoreCase(Cmd, "?"))
+    {
         App_PrintHelp();
-        break;
+        return;
     }
-}
 
-static void App_HandleTimeCmdChar(uint8_t Ch)
-{
-    AppTime_t NewTime;
-
-    if (Ch == '\r' || Ch == '\n')
+    if (App_StrStartsWithIgnoreCase(Cmd, "T "))
     {
-        if (App_CmdIndex > 0)
+        if (App_ParseTimeString(Cmd + 2, &NewTime))
         {
-            App_CmdBuf[App_CmdIndex] = '\0';
-            App_ExecuteTimeSet();
+            App_SetCurrentTime(&NewTime);
+            Serial_SendString("OK,TIME=");
+            App_SendProtoTime(&App_CurrentTime);
+            Serial_SendString("\r\n");
+        }
+        else
+        {
+            App_SendProtoErr("BAD_TIME");
         }
         return;
     }
 
-    if (App_CmdIndex < (APP_CMD_BUF_SIZE - 1))
-    {
-        App_CmdBuf[App_CmdIndex++] = (char)Ch;
-        App_CmdBuf[App_CmdIndex] = '\0';
-    }
-    else
-    {
-        Serial_SendString("[CMD] Time string too long\r\n");
-        App_ResetCmdBuffer();
-        return;
-    }
-
-    while (App_CmdBuf[0] == ' ')
-    {
-        uint8_t i;
-        for (i = 0; i < App_CmdIndex; i++)
-        {
-            App_CmdBuf[i] = App_CmdBuf[i + 1];
-        }
-        if (App_CmdIndex > 0)
-        {
-            App_CmdIndex--;
-        }
-    }
-
-    if (App_ParseTimeString(App_CmdBuf, &NewTime))
-    {
-        App_SetCurrentTime(&NewTime);
-        Serial_SendString("[CMD] Time set OK: ");
-        App_PrintTime(&App_CurrentTime);
-        Serial_SendString("\r\n");
-        App_ResetCmdBuffer();
-    }
+    App_SendProtoErr("UNKNOWN");
 }
 
 static void App_HandleSerialCmd(void)
@@ -552,22 +674,36 @@ static void App_HandleSerialCmd(void)
     {
         Ch = Serial_GetRxData();
 
-        if (App_WaitTimeCmd)
+        if ((Ch == '\r') || (Ch == '\n'))
         {
-            App_HandleTimeCmdChar(Ch);
+            if (App_CmdIndex > 0)
+            {
+                App_CmdBuf[App_CmdIndex] = '\0';
+                App_HandleCmdLine(App_CmdBuf);
+                App_ResetCmdBuffer();
+            }
             continue;
         }
 
-        if ((Ch == '\r') || (Ch == '\n') || (Ch == ' '))
+        if ((App_CmdIndex == 0) && App_IsLegacySingleCmd(Ch) && (!Serial_GetRxFlag()))
         {
+            App_CmdBuf[0] = (char)Ch;
+            App_CmdBuf[1] = '\0';
+            App_HandleCmdLine(App_CmdBuf);
+            App_ResetCmdBuffer();
             continue;
         }
 
-        Serial_SendString("[RX] ");
-        Serial_SendByte(Ch);
-        Serial_SendString("\r\n");
-
-        App_HandleNormalCmd(Ch);
+        if (App_CmdIndex < (APP_CMD_BUF_SIZE - 1))
+        {
+            App_CmdBuf[App_CmdIndex++] = (char)Ch;
+            App_CmdBuf[App_CmdIndex] = '\0';
+        }
+        else
+        {
+            App_SendProtoErr("TOO_LONG");
+            App_ResetCmdBuffer();
+        }
     }
 }
 
@@ -653,20 +789,21 @@ void App_Loop(void)
         Serial_SendString("[EV] ");
         Serial_SendNumber(App_RunTimeMs);
         Serial_SendString(" ms, ");
+
         Serial_SendString(App_EventToString(App_LastEvent));
         Serial_SendString(" -> ");
         Serial_SendString(App_EventToString(App_State.Event));
         Serial_SendString("\r\n");
-
+        App_SendProtoStat("EVT");
         if (App_State.Event != MOTION_EVENT_NONE)
         {
             if (BlackBoxLog_Append(&App_CurrentTime,
-                       App_RunTimeMs,
-                       App_State.Event,
-                       App_State.Pitch_x10,
-                       App_State.Roll_x10,
-                       App_State.AccelDelta,
-                       App_State.GyroAbsSum))
+                                   App_RunTimeMs,
+                                   App_State.Event,
+                                   App_State.Pitch_x10,
+                                   App_State.Roll_x10,
+                                   App_State.AccelDelta,
+                                   App_State.GyroAbsSum))
             {
                 Serial_SendString("[LOG] #");
                 Serial_SendNumber(BlackBoxLog_GetCount());
