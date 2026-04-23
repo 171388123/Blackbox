@@ -12,51 +12,70 @@
 #define BLACKBOX_RECORD_SIZE       (sizeof(BlackBoxRecord_t))
 #define BLACKBOX_MAX_RECORDS       ((BLACKBOX_LOG_END_ADDR - BLACKBOX_LOG_BASE_ADDR) / BLACKBOX_RECORD_SIZE)
 
+#define W25QXX_PAGE_SIZE           256
+
 static uint32_t BlackBox_NextWriteAddr = BLACKBOX_LOG_BASE_ADDR;
 static uint32_t BlackBox_RecordCount = 0;
 static uint32_t BlackBox_NextSeq = 0;
 
-static uint8_t BlackBox_IsRecordErased(const BlackBoxRecord_t *Record)
-{
-    const uint8_t *p = (const uint8_t *)Record;
-    uint32_t i;
-
-    for (i = 0; i < BLACKBOX_RECORD_SIZE; i++)
-    {
-        if (p[i] != 0xFF)
-        {
-            return 0;
-        }
-    }
-
-    return 1;
-}
-
-static uint8_t BlackBox_IsRecordEqual(const BlackBoxRecord_t *A, const BlackBoxRecord_t *B)
-{
-    const uint8_t *pA = (const uint8_t *)A;
-    const uint8_t *pB = (const uint8_t *)B;
-    uint32_t i;
-
-    for (i = 0; i < BLACKBOX_RECORD_SIZE; i++)
-    {
-        if (pA[i] != pB[i])
-        {
-            return 0;
-        }
-    }
-
-    return 1;
-}
-
 static void BlackBox_ClearRecord(BlackBoxRecord_t *Record)
 {
-    uint8_t *p = (uint8_t *)Record;
     uint32_t i;
+    uint8_t *p;
 
+    if (Record == 0)
+    {
+        return;
+    }
+
+    p = (uint8_t *)Record;
     for (i = 0; i < BLACKBOX_RECORD_SIZE; i++)
     {
         p[i] = 0;
+    }
+}
+
+static uint8_t BlackBox_IsRecordSame(const BlackBoxRecord_t *A, const BlackBoxRecord_t *B)
+{
+    if (A == 0 || B == 0)
+    {
+        return 0;
+    }
+
+    if (A->Magic != B->Magic) return 0;
+    if (A->Seq != B->Seq) return 0;
+    if (A->TickMs != B->TickMs) return 0;
+    if (A->Event != B->Event) return 0;
+    if (A->Pitch_x10 != B->Pitch_x10) return 0;
+    if (A->Roll_x10 != B->Roll_x10) return 0;
+    if (A->AD != B->AD) return 0;
+    if (A->GD != B->GD) return 0;
+
+    if (A->Time.Year != B->Time.Year) return 0;
+    if (A->Time.Month != B->Time.Month) return 0;
+    if (A->Time.Day != B->Time.Day) return 0;
+    if (A->Time.Hour != B->Time.Hour) return 0;
+    if (A->Time.Minute != B->Time.Minute) return 0;
+    if (A->Time.Second != B->Time.Second) return 0;
+
+    return 1;
+}
+
+static void BlackBox_WriteBytes(uint32_t Addr, uint8_t *Data, uint16_t Length)
+{
+    uint16_t pageRemain;
+    uint16_t chunk;
+
+    while (Length > 0)
+    {
+        pageRemain = W25QXX_PAGE_SIZE - (Addr % W25QXX_PAGE_SIZE);
+        chunk = (Length < pageRemain) ? Length : pageRemain;
+
+        W25Qxx_PageProgram(Addr, Data, chunk);
+
+        Addr += chunk;
+        Data += chunk;
+        Length -= chunk;
     }
 }
 
@@ -85,6 +104,7 @@ void BlackBoxLog_Init(void)
 
     for (addr = BLACKBOX_LOG_BASE_ADDR; addr < BLACKBOX_LOG_END_ADDR; addr += BLACKBOX_RECORD_SIZE)
     {
+        BlackBox_ClearRecord(&Record);
         W25Qxx_ReadData(addr, (uint8_t *)&Record, BLACKBOX_RECORD_SIZE);
 
         if (Record.Magic == BLACKBOX_LOG_MAGIC)
@@ -93,20 +113,10 @@ void BlackBoxLog_Init(void)
             BlackBox_NextSeq = Record.Seq + 1;
             BlackBox_NextWriteAddr = addr + BLACKBOX_RECORD_SIZE;
         }
-        else if (BlackBox_IsRecordErased(&Record))
-        {
-            /* 遇到真正空白区域，说明日志到这里结束 */
-            BlackBox_NextWriteAddr = addr;
-            return;
-        }
         else
         {
-            /*
-             * 既不是有效记录，也不是空白区：
-             * 说明这个位置是脏数据/异常数据。
-             * 对当前这个小项目，直接格式化整个日志区，保证后续行为确定。
-             */
-            BlackBoxLog_Format();
+            /* 遇到空白或无效数据，就认为后面还没写 */
+            BlackBox_NextWriteAddr = addr;
             return;
         }
     }
@@ -141,19 +151,8 @@ uint8_t BlackBoxLog_Append(BlackBoxTime_t *Time,
         BlackBoxLog_Format();
     }
 
-    /* 写之前先确认当前位置真的是空白区 */
-    W25Qxx_ReadData(BlackBox_NextWriteAddr, (uint8_t *)&VerifyRecord, BLACKBOX_RECORD_SIZE);
-    if (!BlackBox_IsRecordErased(&VerifyRecord))
-    {
-        /*
-         * 理论上 Init 后 NextWriteAddr 应该指向空白区。
-         * 如果这里不是空白区，说明日志区状态已经不可信。
-         * 对当前项目直接格式化，避免继续往脏区域写。
-         */
-        BlackBoxLog_Format();
-    }
-
     BlackBox_ClearRecord(&Record);
+    BlackBox_ClearRecord(&VerifyRecord);
 
     Record.Magic = BLACKBOX_LOG_MAGIC;
     Record.Seq = BlackBox_NextSeq;
@@ -165,11 +164,12 @@ uint8_t BlackBoxLog_Append(BlackBoxTime_t *Time,
     Record.GD = GD;
     Record.Time = *Time;
 
-    W25Qxx_PageProgram(BlackBox_NextWriteAddr, (uint8_t *)&Record, BLACKBOX_RECORD_SIZE);
+    /* 关键修复：分段写，避免 40 字节记录跨 256 字节页边界 */
+    BlackBox_WriteBytes(BlackBox_NextWriteAddr, (uint8_t *)&Record, BLACKBOX_RECORD_SIZE);
 
-    /* 写完立刻回读校验，防止“假保存成功” */
+    /* 写后回读校验 */
     W25Qxx_ReadData(BlackBox_NextWriteAddr, (uint8_t *)&VerifyRecord, BLACKBOX_RECORD_SIZE);
-    if (!BlackBox_IsRecordEqual(&Record, &VerifyRecord))
+    if (!BlackBox_IsRecordSame(&Record, &VerifyRecord))
     {
         return 0;
     }
@@ -185,12 +185,18 @@ uint8_t BlackBoxLog_ReadByIndex(uint32_t Index, BlackBoxRecord_t *Record)
 {
     uint32_t addr;
 
+    if (Record == 0)
+    {
+        return 0;
+    }
+
     if (Index >= BlackBox_RecordCount)
     {
         return 0;
     }
 
     addr = BLACKBOX_LOG_BASE_ADDR + Index * BLACKBOX_RECORD_SIZE;
+    BlackBox_ClearRecord(Record);
     W25Qxx_ReadData(addr, (uint8_t *)Record, BLACKBOX_RECORD_SIZE);
 
     if (Record->Magic != BLACKBOX_LOG_MAGIC)
