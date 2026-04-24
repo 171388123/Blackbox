@@ -1,25 +1,43 @@
-# Keil build output
+# Keil MDK build output
 Objects/
 Listings/
-
-# Build logs and output files
 *.o
 *.d
+*.crf
 *.axf
+*.hex
 *.map
 *.lst
-*.crf
+*.lnp
+*.htm
+*.build_log.htm
 *.dep
-build.log
 
-# Keil user/local files
-*.uvgui.*
+# Keil user/local config
 *.uvoptx
+*.uvguix.*
+*.uvgui.*
+JLinkLog.txt
+JLinkSettings.ini
 
-# VSCode local cache
+# VS Code
 .vscode/ipch/
-.vscode/*.browse.VC.db*
+.vscode/.browse.c_cpp.db*
+.vscode/*.log
 
-# OS junk
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# OS files
 .DS_Store
 Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.log
